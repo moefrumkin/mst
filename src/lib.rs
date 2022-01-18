@@ -1,10 +1,9 @@
-#![allow(dead_code)]
 #![feature(test)]
 
+use std::cmp::{Ord, Ordering, PartialOrd};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::rc::Rc;
-use std::cmp::{Ord, PartialOrd, Ordering};
 
 use std::fs::File;
 use std::io::{self, BufRead};
@@ -25,9 +24,8 @@ pub struct EdgeListGraph<T: Eq + Hash> {
 
 #[derive(PartialEq, Debug)]
 pub struct AdjacencyListGraph<T: Eq + Hash> {
-    vertices: HashMap<Rc<T>, HashSet<Edge<T>>>
+    vertices: HashMap<Rc<T>, HashSet<Edge<T>>>,
 }
-
 
 /// A union find data structure where each item is a map entry with a refernce to its "parent"
 pub struct UnionFind<T: Eq + Hash> {
@@ -49,8 +47,12 @@ where
     fn edges_from<'a>(&'a self, edge: &Rc<T>) -> Vec<&'a Edge<T>>;
 
     fn add_edge_safe(&mut self, start: &Rc<T>, end: &Rc<T>, weight: usize) {
-        if !self.has_vertex(start) {self.add_vertex(start);}
-        if !self.has_vertex(end) {self.add_vertex(end);}
+        if !self.has_vertex(start) {
+            self.add_vertex(start);
+        }
+        if !self.has_vertex(end) {
+            self.add_vertex(end);
+        }
         self.add_edge(start, end, weight);
     }
 
@@ -88,30 +90,37 @@ where
     }
 
     fn mst_prim(&self) -> Self {
-        if self.vertices().is_empty() { return Self::default(); }
+        if self.vertices().is_empty() {
+            return Self::default();
+        }
 
         let mut mst = Self::default();
 
         let mut pq: PriorityQueue<&Edge<T>> = PriorityQueue::new();
 
         let mut nodes: Vec<&Rc<T>> = self.vertices();
-        println!("{} vertices", nodes.len());
 
         let start = nodes.pop().unwrap();
         mst.add_vertex(start);
 
-        self.edges_from(start).into_iter().for_each(|edge| pq.insert(edge));
+        self.edges_from(start)
+            .into_iter()
+            .for_each(|edge| pq.insert(edge));
 
         while nodes.len() > 0 {
             if let Some(Edge(start, end, weight)) = pq.pop() {
                 if mst.has_vertex(start) && !mst.has_vertex(end) {
                     mst.add_vertex(end);
                     mst.add_edge(start, end, *weight);
-                    self.edges_from(end).into_iter().for_each(|edge| pq.insert(edge));
+                    self.edges_from(end)
+                        .into_iter()
+                        .for_each(|edge| pq.insert(edge));
                 } else if mst.has_vertex(end) && !mst.has_vertex(start) {
                     mst.add_vertex(start);
                     mst.add_edge(start, end, *weight);
-                    self.edges_from(start).into_iter().for_each(|edge| pq.insert(edge));
+                    self.edges_from(start)
+                        .into_iter()
+                        .for_each(|edge| pq.insert(edge));
                 }
             } else {
                 return mst;
@@ -138,26 +147,31 @@ where
 
         union_finder.sets()
     }
-
 }
 
 fn load_from<'a, T: Graph<String> + Default>(path: &str) -> T {
-    println!("Loading");
     let mut graph = T::default();
 
     let file = File::open(path).expect("Unable to open graph file");
-    
-    for line in io::BufReader::new(file).lines().map(|line| line.expect("Unable to read line")){
-        println!("{:?}", &line);
+
+    for line in io::BufReader::new(file)
+        .lines()
+        .map(|line| line.expect("Unable to read line"))
+    {
         let words: Vec<_> = line.split(" ").collect();
         if words[0] == "a" {
-            graph.add_edge_safe(&Rc::new(words[1].into()), &Rc::new(words[2].into()), words[3].parse().expect("Cannot convert edge weight to integer"));
+            graph.add_edge_safe(
+                &Rc::new(words[1].into()),
+                &Rc::new(words[2].into()),
+                words[3]
+                    .parse()
+                    .expect("Cannot convert edge weight to integer"),
+            );
         }
     }
-    
+
     graph
 }
-
 
 impl<T: Eq + Hash> EdgeListGraph<T> {
     pub fn new() -> Self {
@@ -169,7 +183,7 @@ impl<T: Eq + Hash> Default for EdgeListGraph<T> {
     fn default() -> Self {
         Self {
             vertices: HashSet::new(),
-            edges: HashSet::new()
+            edges: HashSet::new(),
         }
     }
 }
@@ -196,9 +210,11 @@ impl<T: Eq + Hash> Graph<T> for EdgeListGraph<T> {
     }
 
     fn edges_from<'a>(&'a self, vertex: &Rc<T>) -> Vec<&'a Edge<T>> {
-        self.edges.iter().filter(|&Edge(a, b, _)| a == vertex || b == vertex).collect()
+        self.edges
+            .iter()
+            .filter(|&Edge(a, b, _)| a == vertex || b == vertex)
+            .collect()
     }
-
 }
 
 impl<T: Eq + Hash> AdjacencyListGraph<T> {
@@ -210,42 +226,56 @@ impl<T: Eq + Hash> AdjacencyListGraph<T> {
 impl<T: Eq + Hash> Default for AdjacencyListGraph<T> {
     fn default() -> Self {
         Self {
-            vertices: HashMap::new()
+            vertices: HashMap::new(),
         }
     }
 }
 
-impl<T: Eq + Hash> Graph<T> for  AdjacencyListGraph<T> {
+impl<T: Eq + Hash> Graph<T> for AdjacencyListGraph<T> {
     fn vertices<'a>(&'a self) -> Vec<&'a Rc<T>> {
         self.vertices.keys().collect()
     }
 
     fn edges<'a>(&'a self) -> Vec<&'a Edge<T>> {
-        self.vertices.values().flat_map(|edge_list| edge_list.iter()).collect()
+        self.vertices
+            .values()
+            .flat_map(|edge_list| edge_list.iter())
+            .collect()
     }
 
     fn add_vertex(&mut self, vertex: &Rc<T>) {
-        self.vertices.entry(Rc::clone(vertex)).or_insert_with(|| HashSet::new());
+        self.vertices
+            .entry(Rc::clone(vertex))
+            .or_insert_with(|| HashSet::new());
     }
 
     fn add_edge(&mut self, start: &Rc<T>, end: &Rc<T>, weight: usize) {
-        self.vertices.get_mut(start).expect("Cannot add edge to vertex that does not exist").insert(Edge(Rc::clone(start), Rc::clone(end), weight));
-        self.vertices.get_mut(end).expect("Cannot add edge to vertex that does not exist").insert(Edge(Rc::clone(end), Rc::clone(start), weight));
+        self.vertices
+            .get_mut(start)
+            .expect("Cannot add edge to vertex that does not exist")
+            .insert(Edge(Rc::clone(start), Rc::clone(end), weight));
+        self.vertices
+            .get_mut(end)
+            .expect("Cannot add edge to vertex that does not exist")
+            .insert(Edge(Rc::clone(end), Rc::clone(start), weight));
     }
 
     fn has_vertex(&self, vertex: &Rc<T>) -> bool {
         self.vertices.contains_key(vertex)
     }
-    
+
     fn edges_from(&self, vertex: &Rc<T>) -> Vec<&Edge<T>> {
-        self.vertices.get(vertex).expect("Cannot list edges from vertex that does not exist").iter().collect()
+        self.vertices
+            .get(vertex)
+            .expect("Cannot list edges from vertex that does not exist")
+            .iter()
+            .collect()
     }
-    
 }
 
 impl<T: PartialEq> PartialOrd for Edge<T> {
     fn partial_cmp(&self, &Edge(_, _, other): &Self) -> Option<Ordering> {
-       Some(self.2.cmp(&other))
+        Some(self.2.cmp(&other))
     }
 }
 
@@ -309,20 +339,81 @@ mod tests {
     use test::Bencher;
 
     #[bench]
-    fn bench_edgelist_load(b: &mut Bencher) {
-        bench_load::<EdgeListGraph<String>>(b, "ny.gr");
+    fn bench_kruskal_edgelist_rome(b: &mut Bencher) {
+        let rome = load_from::<EdgeListGraph<String>>("graphs/Rome.gr");
+        b.iter(|| rome.mst_kruskal());
     }
 
-    fn bench_load<T: Graph<String>>(b: &mut Bencher, file: &str) {
-        b.iter(|| {
-            load_from::<T>(file);
-        })
+    #[bench]
+    fn bench_prim_edgelist_rome(b: &mut Bencher) {
+        let rome = load_from::<EdgeListGraph<String>>("graphs/Rome.gr");
+        b.iter(|| rome.mst_prim());
+    }
+
+    #[bench]
+    fn bench_kruskal_adjacencylist_rome(b: &mut Bencher) {
+        let rome = load_from::<AdjacencyListGraph<String>>("graphs/Rome.gr");
+        b.iter(|| rome.mst_kruskal());
+    }
+
+    #[bench]
+    fn bench_prim_adjacencylist_rome(b: &mut Bencher) {
+        let rome = load_from::<AdjacencyListGraph<String>>("graphs/Rome.gr");
+        b.iter(|| rome.mst_prim());
+    }
+
+    #[bench]
+    fn bench_kruskal_edgelist_ny(b: &mut Bencher) {
+        let ny = load_from::<EdgeListGraph<String>>("graphs/NY.gr");
+        b.iter(|| ny.mst_kruskal());
+    }
+
+    #[bench]
+    fn bench_prim_edgelist_ny(b: &mut Bencher) {
+        let ny = load_from::<EdgeListGraph<String>>("graphs/NY.gr");
+        b.iter(|| ny.mst_prim());
+    }
+
+    #[bench]
+    fn bench_kruskal_adjacencylist_ny(b: &mut Bencher) {
+        let ny = load_from::<AdjacencyListGraph<String>>("graphs/NY.gr");
+        b.iter(|| ny.mst_kruskal());
+    }
+
+    #[bench]
+    fn bench_prim_adjacencylist_ny(b: &mut Bencher) {
+        let ny = load_from::<AdjacencyListGraph<String>>("graphs/NY.gr");
+        b.iter(|| ny.mst_prim());
+    }
+
+    #[bench]
+    fn bench_kruskal_edgelist_sf(b: &mut Bencher) {
+        let sf = load_from::<EdgeListGraph<String>>("graphs/SF.gr");
+        b.iter(|| sf.mst_kruskal());
+    }
+
+    #[bench]
+    fn bench_prim_edgelist_sf(b: &mut Bencher) {
+        let sf = load_from::<EdgeListGraph<String>>("graphs/SF.gr");
+        b.iter(|| sf.mst_prim());
+    }
+
+    #[bench]
+    fn bench_kruskal_adjacencylist_sf(b: &mut Bencher) {
+        let sf = load_from::<AdjacencyListGraph<String>>("graphs/SF.gr");
+        b.iter(|| sf.mst_kruskal());
+    }
+
+    #[bench]
+    fn bench_prim_adjacencylist_sf(b: &mut Bencher) {
+        let sf = load_from::<AdjacencyListGraph<String>>("graphs/SF.gr");
+        b.iter(|| sf.mst_prim());
     }
 
     #[test]
     fn test_adjacencylist() {
         let mut graph = AdjacencyListGraph::new();
-        
+
         let p1 = Rc::new((1, 1));
         let p2 = Rc::new((4, 6));
 
@@ -340,7 +431,6 @@ mod tests {
         assert!(graph.has_vertex(&p2));
         assert!(graph.has_vertex(&p3));
     }
-        
 
     #[test]
     fn test_connected_components() {
@@ -472,8 +562,6 @@ mod tests {
         assert_eq!(graph.mst_kruskal(), mst);
     }
 
-
-
     fn test_prim<'a, T: Graph<&'a str> + Default + PartialEq + std::fmt::Debug>() {
         let mut graph = T::default();
 
@@ -515,6 +603,4 @@ mod tests {
 
         assert_eq!(graph.mst_prim(), mst);
     }
-
-
 }
